@@ -1,0 +1,5 @@
+log_munge.txt: Logfile of problems during data cleaning
+---------------------------------------------------------
+
+Date:	XX-XX-XXXX
+Problem: [Description of problem]

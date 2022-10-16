@@ -1,0 +1,640 @@
+# Import and export {}
+
+
+```{r, out.width=c('100%'), echo=F, message=F}
+knitr::include_graphics(here::here("images", "Import_Export_1500x500.png"))
+#Packages setup
+.packages = c("here", "rio", "tidyverse", "DT", "knitr", "clipr", "stringr",
+              "lubridate", "tibble", "fs")
+# Install CRAN packages (if not already installed)
+.inst <- .packages %in% installed.packages()
+if(length(.packages[!.inst]) > 0) install.packages(.packages[!.inst])
+# Load packages into session 
+lapply(.packages, require, character.only=TRUE)
+```
+
+
+
+In this page we describe ways to locate, import, and export files:  
+
+* Use of the **rio** package to flexibly `import()` and `export()` many types of files  
+* Use of the **here** package to locate files relative to an R project root - to prevent complications from file paths that are specific to one computer  
+* Specific import scenarios, such as:  
+  * Specific Excel sheets  
+  * Messy headers and skipping rows  
+  * From Google sheets  
+  * From data posted to websites  
+  * With APIs  
+  * Importing the *most recent* file  
+* Manual data entry  
+* R-specific file types such as RDS and RData  
+* Exporting/saving files and plots  
+
+
+<!-- ======================================================= -->
+## Overview
+
+When you import a "dataset" into R, you are generally creating a new *data frame* object in your R environment and defining it as an imported file (e.g. Excel, CSV, TSV, RDS) that is located in your folder directories at a certain file path/address.  
+
+You can import/export many types of files, including those created by other statistical programs (SAS, STATA, SPSS). You can also connect to relational databases.  
+
+R even has its own data formats:  
+
+* An RDS file (.rds) stores a single R object such as a data frame. These are useful to store cleaned data, as they maintain R column classes. Read more in [this section](#import_rds).    
+* An RData file (.Rdata) can be used to store multiple objects, or even a complete R workspace. Read more in [this section](#import_rdata).  
+
+
+<!-- ======================================================= -->
+## The **rio** package {}  
+
+The R package we recommend is: **rio**. The name "rio" is an abbreviation of "R I/O" (input/output).  
+
+Its functions `import()` and `export()` can handle many different file types (e.g. .xlsx, .csv, .rds, .tsv). When you provide a file path to either of these functions (including the file extension like ".csv"), **rio** will read the extension and use the correct tool to import or export the file.  
+
+The alternative to using **rio** is to use functions from many other packages, each of which is specific to a type of file. For example, `read.csv()` (**base** R), `read.xlsx()` (**openxlsx** package), and `write_csv()` (**readr** pacakge), etc. These alternatives can be difficult to remember, whereas using `import()` and `export()` from **rio** is easy.  
+
+**rio**'s functions `import()` and `export()` use the appropriate package and function for a given file, based on its file extension. See the end of this page for a complete table of which packages/functions **rio** uses in the background. It can also be used to import STATA, SAS, and SPSS files, among dozens of other file types.  
+
+Import/export of shapefiles requires other packages, as detailed in the page on [GIS basics].    
+
+
+
+
+
+## The **here** package {#here}
+
+The package **here** and its function `here()` make it easy to tell R where to find and to save your files - in essence, it builds file paths.  
+
+Used in conjunction with an R project, **here** allows you to describe the location of files in your R project in relation to the R project's *root directory* (the top-level folder). This is useful when the R project may be shared or accessed by multiple people/computers. It prevents complications due to the unique file paths on different computers (e.g. `"C:/Users/Laura/Documents..."` by "starting" the file path in a place common to all users (the R project root).  
+
+This is how `here()` works within an R project:  
+
+* When the **here** package is first loaded within the R project, it places a small file called ".here" in the root folder of your R project as a "benchmark" or "anchor"  
+* In your scripts, to reference a file in the R project's sub-folders, you use the function `here()` to build the file path *in relation to that anchor*
+* To build the file path, write the names of folders beyond the root, within quotes, separated by commas, finally ending with the file name and file extension as shown below  
+* `here()` file paths can be used for both importing and exporting  
+
+For example, below, the function `import()` is being provided a file path constructed with `here()`.  
+
+```{r, eval=F, warning=F}
+library(rio)
+library(here)
+linelist <- import(here("data", "linelists", "linelist_raw.xlsx"))
+```
+
+The command `here("data", "linelists", "linelist_raw.xlsx")` is actually providing the full file path that is *unique to the user's computer*:  
+
+```
+"C:/Users/Laura/Documents/my_R_project/data/linelists/linelist_raw.xlsx"
+```
+
+The beauty is that the R command using `here()` can be successfully run on any computer accessing the R project.   
+
+
+<span style="color: darkgreen;">**_TIP:_** If you are unsure where the “.here” root is set to, run the function `here()` with empty parentheses.</span>  
+
+Read more about the **here** package [at this link](https://here.r-lib.org/).  
+```{r, eval=F, warning=F}
+here()
+```
+
+
+<!-- ======================================================= -->
+## File paths  
+
+When importing or exporting data, you must provide a file path. You can do this one of three ways:  
+
+1) *Recommended:* provide a "relative" file path with the **here** package  
+2) Provide the "full" / "absolute" file path  
+3) Manual file selection  
+
+
+
+### "Relative" file paths {.unnumbered}
+
+In R, "relative" file paths consist of the file path *relative to* the root of an R project. They allow for more simple file paths that can work on different computers (e.g. if the R project is on a shared drive or is sent by email). As described [above](#here), relative file paths are facilitated by use of the **here** package.  
+
+An example of a relative file path constructed with `here()` is below. We assume the work is in an R project that contains a sub-folder "data" and within that a subfolder "linelists", in which there is the .xlsx file of interest.  
+
+```{r, eval=F}
+linelist <- import(here("data", "linelists", "linelist_raw.xlsx"))
+```
+
+
+
+### "Absolute" file paths {.unnumbered}  
+
+Absolute or "full" file paths can be provided to functions like `import()` but they are "fragile" as they are unique to the user's specific computer and therefore *not recommended*. 
+
+Below is an example of an absolute file path, where in Laura's computer there is a folder "analysis", a sub-folder "data" and within that a sub-folder "linelists", in which there is the .xlsx file of interest.  
+
+```{r, eval=F}
+linelist <- import("C:/Users/Laura/Documents/analysis/data/linelists/linelist_raw.xlsx")
+```
+
+A few things to note about absolute file paths:  
+
+* **Avoid using absolute file paths** as they will break if the script is run on a different computer
+* Use *forward* slashes (`/`), as in the example above (note: this is *NOT* the default for Windows file paths)  
+* File paths that begin with double slashes (e.g. "//...") will likely **not be recognized by R** and will produce an error. Consider moving your work to a "named" or "lettered" drive that begins with a letter (e.g. "J:" or "C:"). See the page on [Directory interactions] for more details on this issue.  
+
+One scenario where absolute file paths may be appropriate is when you want to import a file from a shared drive that has the same full file path for all users.  
+
+<span style="color: darkgreen;">**_TIP:_** To quickly convert all `\` to `/`, highlight the code of interest, use Ctrl+f (in Windows), check the option box for "In selection", and then use the replace functionality to convert them.</span>  
+
+
+
+<!-- ======================================================= -->
+### Select file manually {.unnumbered}
+
+You can import data manually via one of these methods:  
+
+1) Environment RStudio Pane, click "Import Dataset", and select the type of data 
+2) Click File / Import Dataset / (select the type of data)  
+3) To hard-code manual selection, use the *base R* command `file.choose()` (leaving the parentheses empty) to trigger appearance of a **pop-up window** that allows the user to manually select the file from their computer. For example:  
+
+```{r import_choose, eval=F}
+# Manual selection of a file. When this command is run, a POP-UP window will appear. 
+# The file path selected will be supplied to the import() command.
+
+my_data <- import(file.choose())
+```
+
+<span style="color: darkgreen;">**_TIP:_** The **pop-up window** may appear BEHIND your RStudio window.</span>
+
+
+
+## Import data  
+
+To use `import()` to import a dataset is quite simple. Simply provide the path to the file (including the file name and file extension) in quotes. If using `here()` to build the file path, follow the instructions above. Below are a few examples:  
+
+Importing a csv file that is located in your "working directory" or in the R project root folder:  
+
+```{r, eval=F}
+linelist <- import("linelist_cleaned.csv")
+```
+
+
+Importing the first sheet of an Excel workbook that is located in "data" and "linelists" sub-folders of the R project (the file path built using `here()`):  
+
+```{r, eval=F}
+linelist <- import(here("data", "linelists", "linelist_cleaned.xlsx"))
+```
+
+
+Importing a data frame (a .rds file) using an absolute file path:  
+
+```{r, eval=F}
+#do not run this on your machine - > absolute file path won't work
+linelist <- import("C:/Users/Laura/Documents/tuberculosis/data/linelists/linelist_cleaned.rds")
+```
+
+
+
+
+
+### Specific Excel sheets {.unnumbered}
+
+By default, if you provide an Excel workbook (.xlsx) to `import()`, the workbook's first sheet will be imported. If you want to import a specific **sheet**, include the sheet name to the `which = ` argument. For example:  
+
+```{r eval=F}
+#do not run the following code, this is the generic form
+my_data <- import("my_excel_file.xlsx", which = "Sheetname")
+```
+
+If using the `here()` method to provide a relative pathway to `import()`, you can still indicate a specific sheet by adding the `which = ` argument after the closing parentheses of the `here()` function.  
+
+```{r import_sheet_here, eval=F}
+# Demonstration: importing a specific Excel sheet when using relative pathways with the 'here' package
+linelist_raw <- import(here("data", "linelist.xlsx"), which = "Sheet1")`  
+```
+
+To *export* a data frame from R to a specific Excel sheet and have the rest of the Excel workbook remain unchanged, you will have to import, edit, and export with an alternative package catered to this purpose such as **openxlsx**. See more information in the page on [Directory interactions] or [at this github page](https://ycphs.github.io/openxlsx/).
+
+If your Excel workbook is .xlsb (binary format Excel workbook) you may not be able to import it using **rio**. Consider re-saving it as .xlsx, or using a package like **readxlsb** which is built for [this purpose](https://cran.r-project.org/web/packages/readxlsb/vignettes/read-xlsb-workbook.html).  
+
+
+
+
+
+
+<!-- ======================================================= -->
+### Missing values {#import_missing .unnumbered} 
+
+You may want to designate which value(s) in your dataset should be considered as missing. As explained in the page on [Missing data], the value in R for missing data is `NA`, but perhaps the dataset you want to import uses 99, "Missing", or just empty character space "" instead.  
+
+Use the `na = ` argument for `import()` and provide the value(s) within quotes (even if they are numbers). You can specify multiple values by including them within a vector, using `c()` as shown below.  
+
+Here, the value "99" in the imported dataset is considered missing and converted to `NA` in R.  
+
+```{r, eval=F}
+linelist <- import(here("data", "my_linelist.xlsx"), na = "99")
+```
+
+Here, any of the values "Missing", "" (empty cell), or " " (single space) in the imported dataset are converted to `NA` in R.  
+
+```{r, eval=F}
+linelist <- import(here("data", "my_linelist.csv"), na = c("Missing", "", "99"))
+```
+
+
+<!-- ======================================================= -->
+### Skip rows {.unnumbered} 
+
+Sometimes, you may want to avoid importing a row of data. You can do this with the argument `skip = ` if using `import()` from **rio** on a .xlsx or .csv file. Provide the number of rows you want to skip. 
+
+
+```{r, eval=F}
+linelist_raw <- import(here("data","linelist_raw.xlsx"), skip = 1)  # does not import header row
+```
+
+Unfortunately `skip = ` only accepts one integer value, *not* a range (e.g. "2:10" does not work). To skip import of specific rows that are not consecutive from the top, consider importing multiple times and using `bind_rows()` from **dplyr**. See the example below of skipping only row 2.  
+
+
+
+### Manage a second header row {.unnumbered}  
+
+Sometimes, your data may have a *second* row, for example if it is a "data dictionary" row as shown below. This situation can be problematic because it can result in all columns being imported as class "character".  
+
+```{r, echo=F}
+# HIDDEN FROM READER
+####################
+# Create second header row of "data dictionary" and insert into row 2. Save as new dataframe.
+linelist_2headers <- rio::import(here::here("data", "linelists", "linelist_cleaned.rds")) %>%         
+        mutate(across(everything(), as.character)) %>% 
+        add_row(.before = 1,
+                #row_num = "000",
+                case_id = "case identification number assigned by MOH",
+                generation = "transmission chain generation number",
+                date_infection = "estimated date of infection, mm/dd/yyyy",
+                date_onset = "date of symptom onset, YYYY-MM-DD",
+                date_hospitalisation = "date of initial hospitalization, mm/dd/yyyy",
+                date_outcome = "date of outcome status determination",
+                outcome = "either 'Death' or 'Recovered' or 'Unknown'",
+                gender = "either 'm' or 'f' or 'unknown'",
+                hospital = "Name of hospital of first admission",
+                lon = "longitude of residence, approx",
+                lat = "latitude of residence, approx",
+                infector = "case_id of infector",
+                source = "context of known transmission event",
+                age = "age number",
+                age_unit = "age unit, either 'years' or 'months' or 'days'",
+                fever = "presence of fever on admission, either 'yes' or 'no'",
+                chills = "presence of chills on admission, either 'yes' or 'no'",
+                cough = "presence of cough on admission, either 'yes' or 'no'",
+                aches = "presence of aches on admission, either 'yes' or 'no'",
+                vomit = "presence of vomiting on admission, either 'yes' or 'no'",
+                time_admission = "time of hospital admission HH:MM")
+```
+
+Below is an example of this kind of dataset (with the first row being the data dictionary).  
+
+```{r message=FALSE, echo=F}
+# display the linelist data as a table
+DT::datatable(head(linelist_2headers, 5), rownames = FALSE, filter="top", options = list(pageLength = 4, scrollX=T), class = 'white-space: nowrap' )
+```
+
+#### Remove the second header row {.unnumbered}  
+
+To drop the second header row, you will likely need to import the data twice.  
+
+1) Import the data in order to store the correct column names  
+2) Import the data again, skipping the first *two* rows (header and second rows)  
+3) Bind the correct names onto the reduced dataframe
+
+The exact argument used to bind the correct column names depends on the type of data file (.csv, .tsv, .xlsx, etc.). This is because **rio** is using a different function for the different file types (see table above).  
+
+**For Excel files:** (`col_names = `)  
+
+```{r, eval=F}
+# import first time; store the column names
+linelist_raw_names <- import("linelist_raw.xlsx") %>% names()  # save true column names
+
+# import second time; skip row 2, and assign column names to argument col_names =
+linelist_raw <- import("linelist_raw.xlsx",
+                       skip = 2,
+                       col_names = linelist_raw_names
+                       ) 
+```
+
+**For CSV files:** (`col.names = `)  
+
+```{r, eval=F}
+# import first time; store column names
+linelist_raw_names <- import("linelist_raw.csv") %>% names() # save true column names
+
+# note argument for csv files is 'col.names = '
+linelist_raw <- import("linelist_raw.csv",
+                       skip = 2,
+                       col.names = linelist_raw_names
+                       ) 
+```
+
+**Backup option** - changing column names as a separate command
+
+```{r, eval=F}
+# assign/overwrite headers using the base 'colnames()' function
+colnames(linelist_raw) <- linelist_raw_names
+```
+
+
+#### Make a data dictionary {.unnumbered}  
+
+Bonus! If you do have a second row that is a data dictionary, you can easily create a proper data dictionary from it. This tip is adapted from this [post](https://alison.rbind.io/post/2018-02-23-read-multiple-header-rows/).  
+
+
+```{r}
+dict <- linelist_2headers %>%             # begin: linelist with dictionary as first row
+  head(1) %>%                             # keep only column names and first dictionary row                
+  pivot_longer(cols = everything(),       # pivot all columns to long format
+               names_to = "Column",       # assign new column names
+               values_to = "Description")
+```
+
+
+```{r message=FALSE, echo=F}
+DT::datatable(dict, rownames = FALSE, filter="top", options = list(pageLength = 4, scrollX=T), class = 'white-space: nowrap' )
+```
+
+
+
+#### Combine the two header rows {.unnumbered}  
+
+In some cases when your raw dataset has *two* header rows (or more specifically, the 2nd row of data is a secondary header), you may want to "combine" them or add the values in the second header row into the first header row.  
+
+The command below will define the data frame's column names as the combination (pasting together) of the first (true) headers with the value immediately underneath (in the first row).  
+
+```{r, eval=F}
+my_data <- import(here("data", "my_data.csv"), header = TRUE)
+names(my_data) <- paste(names(my_data), my_data[1, ], sep = "_")
+my_data <- filter(my_data, row_number() != 1L)
+#check column classes
+sapply(my_data, class)
+#The following line only works if imported df does not include NAs
+my_data <- my_data %>% mutate_if(is.character, as.numeric)
+sapply(my_data, class)
+#The following is not run. --> Go to Webpage
+```
+
+
+
+<!-- ======================================================= -->
+### Google sheets {.unnumbered}
+
+
+
+
+
+
+## Multiple files - import, export, split, combine  
+
+
+
+
+
+
+<!-- ======================================================= -->
+## Import from Github {#import_github}
+
+
+### Shapefiles {.unnumbered} 
+
+
+
+<!-- ======================================================= -->
+## Manual data entry {}
+
+### Entry by rows {.unnumbered}  
+
+Use the `tribble` function from the **tibble** package from the tidyverse ([online tibble reference](https://tibble.tidyverse.org/reference/tribble.html)).  
+  
+Note how column headers start with a *tilde* (`~`).  Also note that each column must contain only one class of data (character, numeric, etc.). You can use tabs, spacing, and new rows to make the data entry more intuitive and readable. Spaces do not matter between values, but each row is represented by a new line of code. For example:  
+
+```{r import_manual_row}
+# create the dataset manually by row
+manual_entry_rows <- tibble::tribble(
+  ~colA, ~colB,
+  "a",   1,
+  "b",   2,
+  "c",   3
+  )
+```
+
+And now we display the new dataset:  
+
+```{r, echo=F}
+# display the new dataset
+DT::datatable(manual_entry_rows)
+```
+
+
+### Entry by columns {.unnumbered}  
+
+Since a data frame consists of vectors (vertical columns), the **base** approach to manual dataframe creation in R expects you to define each column and then bind them together. This can be counter-intuitive in epidemiology, as we usually think about our data in rows (as above). 
+
+```{r import_manual_col}
+# define each vector (vertical column) separately, each with its own name
+PatientID <- c(235, 452, 778, 111)
+Treatment <- c("Yes", "No", "Yes", "Yes")
+Death     <- c(1, 0, 1, 0)
+```
+
+<span style="color: orange;">**_CAUTION:_** All vectors must be the same length (same number of values).</span>
+
+The vectors can then be bound together using the function `data.frame()`:  
+
+```{r}
+# combine the columns into a data frame, by referencing the vector names
+manual_entry_cols <- data.frame(PatientID, Treatment, Death)
+```
+
+And now we display the new dataset:  
+
+```{r, echo=F}
+# display the new dataset
+DT::datatable(manual_entry_cols)
+
+#Below not run.
+```
+
+
+
+
+### Pasting from clipboard {.unnumbered}  
+
+
+
+
+
+
+## Import most recent file  
+
+ 
+
+
+### Dates in file name {.unnumbered}  
+
+
+
+
+
+### Use the file info {.unnumbered}  
+
+
+
+
+<!-- ======================================================= -->
+## APIs {#import_api}
+
+
+
+
+### HTTP request {.unnumbered}  
+
+
+
+
+### Packages {.unnumbered}  
+
+
+
+### Publicly-available data {.unnumbered}  
+
+  
+
+
+### Authentication required {.unnumbered}  
+
+
+
+
+
+<!-- ======================================================= -->
+## Export {}  
+
+### With **rio** package {.unnumbered}
+With **rio**, you can use the `export()` function in a very similar way to `import()`. First give the name of the R object you want to save (e.g. `linelist`) and then in quotes put the file path where you want to save the file, including the desired file name and file extension. For example:  
+
+This saves the data frame `linelist` as an Excel workbook to the working directory/R project root folder:  
+
+```{r, eval=F}
+export(linelist, "my_linelist.xlsx") # will save to working directory
+```
+
+You could save the same data frame as a csv file by changing the extension. For example, we also save it to a file path constructed with `here()`:  
+
+```{r, eval=F}
+export(linelist, here("data", "clean", "my_linelist.csv"))
+```
+
+
+### To clipboard {.unnumbered}
+
+To export a data frame to your computer's "clipboard" (to then paste into another software like Excel, Google Spreadsheets, etc.) you can use `write_clip()` from the **clipr** package. 
+
+```{r, eval=F}
+# export the linelist data frame to your system's clipboard
+clipr::write_clip(linelist)
+```
+
+
+
+
+## RDS files {#import_rds}
+
+Along with .csv, .xlsx, etc, you can also export/save R data frames as .rds files. This is a file format specific to R, and is very useful if you know you will work with the exported data again in R. 
+
+The classes of columns are stored, so you don't have do to cleaning again when it is imported (with an Excel or even a CSV file this can be a headache!). It is also a smaller file, which is useful for export and import if your dataset is large.  
+
+For example, if you work in an Epidemiology team and need to send files to a GIS team for mapping, and they use R as well, just send them the .rds file! Then all the column classes are retained and they have less work to do.  
+
+```{r, eval=F}
+export(linelist, here("data", "clean", "my_linelist.rds"))
+```
+
+
+
+<!-- ======================================================= -->
+## Rdata files and lists {#import_rdata}
+
+`.Rdata` files can store multiple R objects - for example multiple data frames, model results, lists, etc. This can be very useful to consolidate or share a lot of your data for a given project.  
+
+In the below example, multiple R objects are stored within the exported file "my_objects.Rdata":  
+
+```{r, eval=F}
+#the following not run
+rio::export(my_list, my_dataframe, my_vector, "my_objects.Rdata")
+```
+
+Note: if you are trying to *import* a list, use `import_list()` from **rio** to import it with the complete original structure and contents.  
+
+```{r, eval=F}
+rio::import_list("my_list.Rdata")
+```
+
+
+
+
+
+
+
+<!-- ======================================================= -->
+## Saving plots {} 
+
+Instructions on how to save plots, such as those created by `ggplot()`, are discussed in depth in the [ggplot basics] page.  
+
+In brief, run `ggsave("my_plot_filepath_and_name.png")` after printing your plot. You can either provide a saved plot object to the `plot = ` argument, or only specify the destination file path (with file extension) to save the most recently-displayed plot. You can also control the `width = `, `height = `, `units = `, and `dpi = `.  
+
+How to save a network graph, such as a transmission tree, is addressed in the page on [Transmission chains]. 
+
+
+<!-- ======================================================= -->
+## Resources {} 
+
+The [R Data Import/Export Manual](https://cran.r-project.org/doc/manuals/r-release/R-data.html)  
+[R 4 Data Science chapter on data import](https://r4ds.had.co.nz/data-import.html#data-import)  
+[ggsave() documentation](https://ggplot2.tidyverse.org/reference/ggsave.html)  
+
+
+Below is a table, taken from the **rio** online [vignette](https://cran.r-project.org/web/packages/rio/vignettes/rio.html). For each type of data it shows: the expected file extension, the package **rio** uses to import or export the data, and whether this functionality is included in the default installed version of **rio**.  
+
+
+
+Format                     | Typical Extension | Import Package    | Export Package     | Installed by Default
+---------------------------|-------------------|-------------------|--------------------|---------------------
+Comma-separated data | .csv | data.table `fread()` | data.table |	Yes
+Pipe-separated data |	.psv | data.table `fread()` | data.table | Yes
+Tab-separated data| .tsv | data.table `fread()` | data.table | Yes
+SAS | .sas7bdat | haven | haven | Yes
+SPSS | .sav | haven | haven | Yes
+Stata | .dta | haven | haven | Yes
+SAS | XPORT | .xpt | haven | haven | Yes
+SPSS Portable | .por | haven | | Yes
+Excel | .xls | readxl | | Yes
+Excel | .xlsx | readxl | openxlsx | Yes
+R syntax | .R	| base | base | Yes
+Saved R objects | .RData, .rda | base | base | Yes
+Serialized R objects | .rds | base | base | Yes
+Epiinfo | .rec | foreign | | Yes
+Minitab | .mtp | foreign | | Yes
+Systat | .syd |	foreign | | Yes
+“XBASE” | database files | .dbf | foreign | foreign | Yes
+Weka Attribute-Relation File Format | .arff | foreign | foreign | Yes
+Data Interchange Format | .dif | utils | | Yes
+Fortran data | no recognized extension | utils | | Yes
+Fixed-width format data | .fwf | utils | utils | Yes
+gzip comma-separated data | .csv.gz | utils | utils | Yes
+CSVY (CSV + YAML metadata header) | .csvy | csvy | csvy | No
+EViews | .wf1 |hexView | | No
+Feather R/Python interchange format | .feather | feather | feather | No
+Fast Storage | .fst | fst |	fst | No
+JSON | .json | jsonlite | jsonlite | No
+Matlab | .mat | rmatio | rmatio | No
+OpenDocument Spreadsheet | .ods | readODS | readODS | No
+HTML Tables | .html | xml2 | xml2 | No
+Shallow XML documents | .xml | xml2 | xml2 | No
+YAML | .yml | yaml | yaml	| No
+Clipboard	default is tsv | |  clipr | clipr | No
+
+
+
