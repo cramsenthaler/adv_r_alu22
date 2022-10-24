@@ -18,16 +18,20 @@
 
 #Set-up chunk----
 #Set up might also entail creating an R project in the exercise folder.
-
+install.packages("skimr")
 #Setting up packages vector
 .packages <- c("here","rio","lubridate","tidyverse","janitor", "skimr")
+#if(!require(.packages) install.packages(.packages))
+#if(any(!.packages)) install.packages(!.packages)
 lapply(.packages, require, character.only=TRUE)
+
 warnings()
 options(scipen=999)
 
+
 #1. Raw file data import----
 #You might have to do someting when you read in the data.
-exercise <- import("raw_exercise01.xlsx", skip = 1)
+exercise <- import(here("raw","raw_exercise01.xlsx"), skip = 1)
 View(exercise)
 skim(exercise)
 glimpse(exercise)
@@ -49,6 +53,10 @@ clean <- clean %>%
 names(clean)
 
 #coming up with a very simple vector holding names
+#esas01, esas02 to esas09
+#esas01_t1
+#esas01_t2
+
 esas <- rep("esas", times = 9)
 numbers <- 1:9
 esas <- str_c(esas, numbers)
@@ -56,6 +64,9 @@ t1 <- rep("t1", times = 9)
 t2 <- rep("t2", times = 9)
 esast1 <- str_c(esas, t1, sep = "_")
 esast2 <- str_c(esas, t2, sep = "_")
+
+esast1 <- paste0(sprintf("esas%02d", 1:9), "_t1")
+esast2 <- paste0(sprintf("esas%02d", 1:9), "_t2")
 
 names(clean)[9:17] <- esast1
 names(clean)[19:27] <- esast2
@@ -79,8 +90,8 @@ clean$age <- as.numeric(clean$age)
 Hmisc::describe(clean$age)
 
 janitor::tabyl(clean$height)
-clean$height <- as.numeric(clean$height)
-Hmisc::describe(clean$height)
+clean$weight <- as.numeric(clean$weight)
+Hmisc::describe(clean$weight)
 
 #There is another structural issue which we should address: missing values.
 #Check for Missing values and code all '999' as NA.
@@ -88,7 +99,7 @@ skim(clean)
 #999 are missing data
 clean <- clean %>% 
   na_if(999)
-
+View(clean)
 
 #4. Selecting or re-ordering columns----
 #Reorder columns so that patient characteristics are at the beginning.
@@ -135,80 +146,84 @@ Hmisc::describe(clean$age)
 #Recode each esas symptom variable such that this is yes for values >= 5
 #and no for values <5.
 #Need to do this for both t1 and t2.
-clean_esast1 <- clean %>% 
-  select(ends_with("t1")) %>% 
-  mutate_all(., funs(ifelse(. >=5, 1, 0)))
-colnames(clean_esast1) <- paste(colnames(clean_esast1),"c",sep="")
-names(clean_esast1)
-#the same for t2
-clean_esast2 <- clean %>% 
-  select(ends_with("t2")) %>% 
-  mutate_all(., funs(ifelse(. >=5, 1, 0)))
-colnames(clean_esast2) <- paste(colnames(clean_esast2),"c",sep="")
-names(clean_esast2)
+#streamline more - just use starts_with("esas")
+#clean_esast1 <- clean %>% 
+#  select(ends_with("t1")) %>% 
+#  mutate_all(., funs(ifelse(. >=5, 1, 0)))
+#old deprecated Christina version
 
-#Now we bind back the variables
+#Plan of attack for tomorrow:
+#use syntax below, but then do second step of separating transformed
+#vars and joining (cbinding) back into clean dataset version
+#Absolutely lovely collective group effort version
+clean <- clean %>% 
+  mutate_at(vars(starts_with("esas")), funs(c = ifelse(. >=5, 1, 0)))
+rm(cleannew)
+names(clean)
 
-cleannew <- cbind(clean, clean_esast1, clean_esast2)
-View(cleannew)
+#also need to assign these new names to object cleannew
+#stuff we don't need, keep for now, delete later
+#colnames(clean_esast1) <- paste(colnames(clean_esast1),"c",sep="")
 
 
 #7. Re-coding variables----
 #Calculate age categories using quantile breaks
-quantile(cleannew$age,
+quantile(clean$age,
          probs = c(0, .25, .50, .75, 1),   # specify the percentiles you want
          na.rm = TRUE) 
 #Breaks should be at 59, 67, 76
-cleannew <- cleannew %>% 
+clean <- clean %>% 
   mutate(age_cat = cut(age,
                        breaks = quantile(
                          age,
                          probs = c(0, .25,.50,.75, 1),
                          na.rm = TRUE),
                        include.lowest = TRUE))
-janitor::tabyl(cleannew$age_cat)
-janitor::tabyl(cleannew$age)
+janitor::tabyl(clean$age_cat)
+class(clean$age_cat)
+levels(clean$age_cat)
+table(clean$age, clean$age_cat, useNA = "always")
 
 #Recode performance status akps with a cutoff of <= 50 
 #for low performance status.
-cleannew <- cleannew %>% 
+clean <- clean %>% 
   mutate(akpscat = ifelse(akps <= 50, 1, 0))
-cleannew %>%janitor::tabyl(akps, akpscat)
+clean %>% janitor::tabyl(akps, akpscat)
 
 #8. Setting up factor variables----
 #Recode factor variables with factor levels.
 #Also give recoded variables under 7) the proper factor levels.
 
-table(cleannew$severity, useNA = "always")
+table(clean$severity, useNA = "always")
 #Recode the 3 to NA!
-cleannew$severity <- cleannew$severity %>% 
+clean$severity <- clean$severity %>% 
   na_if(3)
-table(cleannew$severity, useNA = "always")
+table(clean$severity, useNA = "always")
 
-names(cleannew)
+names(clean)
 #Factor variables are 
 #sex
-class(cleannew$sex)
-table(cleannew$sex)
-cleannew$sexf <- factor(cleannew$sex,
+class(clean$sex)
+table(clean$sex)
+clean$sexf <- factor(clean$sex,
                        levels = c("f","m"),
                        labels = c("women","men"))
-levels(cleannew$sexf)
-sum(is.na(cleannew$sex))
+levels(clean$sexf)
+sum(is.na(clean$sex))
 
 #age_cat
-class(cleannew$age_cat)
-levels(cleannew$age_cat)
+class(clean$age_cat)
+levels(clean$age_cat)
 
 #akps_cat
-table(cleannew$akpscat, useNA = "always")
+table(clean$akpscat, useNA = "always")
 #Either use forcats _explicit_na to make factor level for missing
 #Or use exclude = NULL in normal factor call:
-cleannew$akpscatf <- factor(cleannew$akpscat, 
+clean$akpscatf <- factor(clean$akpscat, 
                            levels = c(0,1, NA),
                            labels = c("Under50", "Over60", "Missing"),
                            exclude = NULL)
-table(cleannew$akpscatf)
+table(clean$akpscatf)
 
 #end all esas variables that end with c - we will leave those for now.
 #I often skip 0/1 factor variables that I have created for a count of something
@@ -222,33 +237,36 @@ table(cleannew$akpscatf)
 class(clean$date_entry)
 class(clean$date_last)
 
-cleannew <- cleannew %>% 
+#lubridate
+clean <- clean %>% 
   mutate(days_diff = date_last - date_entry)
-cleannew$days_diff <- as.numeric(cleannew$days_diff)
-psych::describe(cleannew$days_diff)
+
+clean$days_diff <- as.numeric(clean$days_diff)
+psych::describe(clean$days_diff)
 
 
 #10. Row-wise calculations----
 #Using the cut variables for esas items under 6), calculate a rowwise total
 #symptom score 
 #for t1 and t2
-cleannew <- cleannew %>%
+names(clean)
+clean <- clean %>%
   rowwise() %>%
-  mutate(num_esast1 = sum(c(esas1_t1c, esas2_t1c, esas3_t1c,
-                            esas4_t1c, esas5_t1c, esas6_t1c,
-                            esas7_t1c, esas8_t1c, esas9_t1c) == 1)) %>% 
+  mutate(num_esast1 = sum(c(esas01_t1_c, esas02_t1_c, esas03_t1_c,
+                            esas04_t1_c, esas05_t1_c, esas06_t1_c,
+                            esas07_t1_c, esas08_t1_c, esas09_t1_c) == 1)) %>% 
   ungroup()
-View(cleannew)
+View(clean)
 #Should we use na.rm in the above call?
 #t2
-cleannew <- cleannew %>%
+clean <- clean %>%
   rowwise() %>%
-  mutate(num_esast2 = sum(c(esas1_t2c, esas2_t2c, esas3_t2c,
-                            esas4_t2c, esas5_t2c, esas6_t2c,
-                            esas7_t2c, esas8_t2c, esas9_t2c) == 1)) %>% 
+  mutate(num_esast2 = sum(c(esas01_t2_c, esas02_t2_c, esas03_t2_c,
+                            esas04_t2_c, esas05_t2_c, esas06_t2_c,
+                            esas07_t2_c, esas08_t2_c, esas09_t2_c) == 1)) %>% 
   ungroup()
 
-psych::describe(cleannew$num_esast2)
+psych::describe(clean$num_esast2)
 
 #11. Final sort and arrange----
 #Sort the file by patient id.
@@ -257,17 +275,17 @@ psych::describe(cleannew$num_esast2)
 #each variable correct?
 
 #do the final select
-names(cleannew)
-cleannew <- cleannew %>% 
+names(clean)
+clean <- clean %>% 
   select(patient_id, age, age_cat, sex, sexf, weight, height, bmi, akps,
-         akpscat, akpscatf, severity, date_entry, esas1_t1:esas9_t1, 
-         esas1_t1c:esas9_t1c, num_esast1, date_last, esas1_t2:esas9_t2,
-         esas1_t2c:esas9_t2c, days_diff)
-View(cleannew)
+         akpscat, akpscatf, severity, date_entry, esas01_t1:esas09_t1, 
+         esas01_t1_c:esas09_t1_c, num_esast1, date_last, esas01_t2:esas09_t2,
+         esas01_t2_c:esas09_t2_c, days_diff)
+View(clean)
 
 #12. Export masterfile----
 #Export the masterfile into the "data" folder.
-export(cleannew, "master.rds")
+export(clean, "master_exercise.rds")
 
 
 #Bonus points if you start on a data dictionary.
